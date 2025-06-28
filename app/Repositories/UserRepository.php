@@ -26,11 +26,11 @@ class UserRepository
         return User::create($data);
     }
 
-  public function update(User $user, array $data)
-{
-    $user->update($data);
-    return $user;
-}
+    public function update(User $user, array $data)
+    {
+        $user->update($data);
+        return $user;
+    }
 
     public function delete(User $user)
     {

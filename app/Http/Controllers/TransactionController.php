@@ -7,9 +7,10 @@ use App\Http\Resources\TransactionResource;
 use App\Services\TransactionService;
 use Illuminate\Http\Request;
 use App\Models\Transaction;
+use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
-class TransactionController extends Controller
+class TransactionController extends Controller implements HasMiddleware
 {
     protected $transactionService;
 
@@ -18,15 +19,15 @@ class TransactionController extends Controller
         $this->transactionService = $transactionService;
     }
 
-  public static function middleware(): array
-{
-    return [
-        'auth:api',
-        new Middleware('permission:view_transaction', only: ['index']),
-        new Middleware('permission:create_transaction', only: ['store']),
-        new Middleware('permission:update_transaction', only: ['update']),
-    ];
-}
+    public static function middleware(): array
+    {
+        return [
+            'auth:api',
+            new Middleware('permission:view_transaction', only: ['index']),
+            new Middleware('permission:create_transaction', only: ['store']),
+            new Middleware('permission:update_transaction', only: ['update']),
+        ];
+    }
 
 
     public function index(Request $request)
@@ -55,9 +56,9 @@ class TransactionController extends Controller
         }
 
         // return TransactionResource::collection($query->get());
-return TransactionResource::collection(
-    $query->latest()->get()
-);
+        return TransactionResource::collection(
+            $query->latest()->get()
+        );
     }
 
     public function store(TransactionRequest $request)
@@ -91,7 +92,7 @@ return TransactionResource::collection(
             return response()->json(['message' => 'Transaction not found'], 404);
         }
 
-        return new TransactionRequest($transaction);
+        return new TransactionResource($transaction);
     }
 
     // public function update($id, TransactionRequest $request)
@@ -104,21 +105,20 @@ return TransactionResource::collection(
     //     return new TransactionResource($transaction);
     // }
 
-public function update(TransactionRequest $request, $kode)
-{
-    $result = $this->transactionService->updateTransactionByKode($kode, $request);
+    public function update(TransactionRequest $request, $kode)
+    {
+        $result = $this->transactionService->updateTransactionByKode($kode, $request);
 
-    if ($result['success']) {
-        return response()->json([
-            'message' => $result['message'],
-            'data' => new TransactionResource($result['data'])
-        ], 200);
-    } else {
-        return response()->json([
-            'message' => $result['message'],
-            'error' => $result['error']
-        ], 404);
+        if ($result['success']) {
+            return response()->json([
+                'message' => $result['message'],
+                'data' => new TransactionResource($result['data'])
+            ], 200);
+        } else {
+            return response()->json([
+                'message' => $result['message'],
+                'error' => $result['error']
+            ], 404);
+        }
     }
-}
-
 }
