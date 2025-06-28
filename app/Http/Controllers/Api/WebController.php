@@ -90,5 +90,4 @@ class WebController extends Controller
         }
         return uploadBase64Image($newBase64, 'img/web');
     }
-
 }
