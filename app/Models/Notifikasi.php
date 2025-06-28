@@ -26,5 +26,4 @@ class Notifikasi extends Model
     {
         return $this->belongsTo(Gudang::class);
     }
-
 }

@@ -21,7 +21,6 @@ class AuthRepository
         return User::where('name', $name)->first();
     }
 
-
     public function getUserPermissions(User $user): \Illuminate\Support\Collection
     {
         return $user->getAllPermissions()->pluck('name');

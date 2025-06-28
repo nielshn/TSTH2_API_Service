@@ -149,12 +149,20 @@ class UserController extends Controller implements HasMiddleware
             $user = $this->userService->updateUserByAdmin($id, $request->all());
 
             return response()->json([
-                'message' => 'Data pengguna berhasil diperbarui oleh admin',
+                'success' => true,
+                'message' => 'Data pengguna berhasil diperbarui oleh admin.',
                 'data' => new UserResource($user)
-            ]);
+            ], 200);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal memperbarui data pengguna',
+                'success' => false,
+                'message' => 'Gagal memperbarui data pengguna.',
                 'error' => $e->getMessage()
             ], 422);
         }

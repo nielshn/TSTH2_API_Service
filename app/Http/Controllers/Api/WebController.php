@@ -23,7 +23,7 @@ class WebController extends Controller
     {
         return response()->json([
             'success' => true,
-            'message' => 'Web settings list retrieved successfully',
+            'message' => 'Daftar pengaturan web berhasil diambil.',
             'data' => WebResource::collection($this->service->getAll()),
         ], 200);
     }
@@ -34,15 +34,15 @@ class WebController extends Controller
             $web = $this->service->getById($id);
             return response()->json([
                 'success' => true,
-                'message' => 'Web settings retrieved successfully',
+                'message' => 'Pengaturan web berhasil diambil.',
                 'data' => new WebResource($web),
             ], 200, [
-                'Cache-Control' => 'public, max-age=3600', // Hint to cache for 1 hour
+                'Cache-Control' => 'public, max-age=3600',
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Data Tidak Ada.',
+                'message' => 'Data tidak ditemukan.',
             ], 404);
         }
     }
@@ -67,13 +67,13 @@ class WebController extends Controller
             $updatedWeb = $this->service->update($id, $data);
             return response()->json([
                 'success' => true,
-                'message' => 'Web settings updated successfully',
+                'message' => 'Pengaturan web berhasil diperbarui.',
                 'data' => new WebResource($updatedWeb),
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
             ], 500);
         }
     }

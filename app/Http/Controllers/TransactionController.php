@@ -7,10 +7,11 @@ use App\Http\Resources\TransactionResource;
 use App\Services\TransactionService;
 use Illuminate\Http\Request;
 use App\Models\Transaction;
-use Illuminate\Routing\Controllers\HasMiddleware;
+use App\Repositories\TransactionRepository;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Routing\Controllers\Middleware;
 
-class TransactionController extends Controller implements HasMiddleware
+class TransactionController extends Controller
 {
     protected $transactionService;
 
@@ -61,16 +62,19 @@ class TransactionController extends Controller implements HasMiddleware
         );
     }
 
-    public function store(TransactionRequest $request)
+    public function store(Request $request)
     {
-        $result = $this->transactionService->processTransaction($request);
-        if (!$result['success']) {
-            return response()->json(['message' => $result['message'], 'error' => $result['error']], 422);
+        try {
+            $result = app(TransactionRepository::class)->createTransaction($request);
+            return response()->json([
+                'message' => 'Transaksi berhasil dibuat.',
+                'data' => $result
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], 422);
         }
-        return response()->json([
-            'message' => 'Transaction berhasil dibuat!',
-            'data' => new TransactionResource($result['data'])
-        ]);
     }
 
     public function checkBarcode($barcode)
@@ -95,30 +99,23 @@ class TransactionController extends Controller implements HasMiddleware
         return new TransactionResource($transaction);
     }
 
-    // public function update($id, TransactionRequest $request)
-    // {
-    //     $transaction = $this->transactionService->updateTransaction($id, $request->validated());
-    //     if (!$transaction) {
-    //         return response()->json(['message' => 'Transaction not found'], 404);
-    //     }
-
-    //     return new TransactionResource($transaction);
-    // }
-
     public function update(TransactionRequest $request, $kode)
     {
-        $result = $this->transactionService->updateTransactionByKode($kode, $request);
+        try {
+            $transaction = $this->transactionService->updateTransactionByKode($kode, $request);
 
-        if ($result['success']) {
             return response()->json([
-                'message' => $result['message'],
-                'data' => new TransactionResource($result['data'])
+                'message' => 'Transaksi berhasil diperbarui.',
+                'data' => new TransactionResource($transaction)
             ], 200);
-        } else {
+        } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => $result['message'],
-                'error' => $result['error']
+                'message' => 'Transaksi tidak ditemukan.'
             ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], 422);
         }
     }
 }

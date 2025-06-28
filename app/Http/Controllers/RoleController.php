@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Http\Resources\RoleResource;
@@ -25,12 +26,14 @@ class RoleController extends Controller implements HasMiddleware
             new Middleware('permission:create_role', only: ['store']),
             new Middleware('permission:update_role', only: ['update']),
             new Middleware('permission:delete_role', only: ['destroy']),
+            new Middleware('permission:restore_role', only: ['restore']),
         ];
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $roles = $this->roleService->getAll();
+        $withTrashed = $request->query('with_trashed') === 'true';
+        $roles = $this->roleService->getAll($withTrashed);
         return RoleResource::collection($roles);
     }
 
@@ -39,18 +42,22 @@ class RoleController extends Controller implements HasMiddleware
         try {
             $role = $this->roleService->create($request->all());
             return response()->json([
-                'message' => 'Role berhasil dibuat',
-                'data' => new RoleResource($role)
+                'message' => 'Role berhasil disimpan',
+                'data' => new RoleResource($role),
             ], 201);
         } catch (ValidationException $e) {
-            return response()->json(['errors' => $e->errors()], 400);
+            return response()->json(['errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Gagal menyimpan role', 'error' => $e->getMessage()], 400);
         }
     }
 
     public function show($id)
     {
-        $role = $this->roleService->getById($id);
-        return $role ? new RoleResource($role) : response()->json(['message' => 'Role tidak ditemukan.'], 404);
+        $role = $this->roleService->getById($id, true);
+        return $role
+            ? new RoleResource($role)
+            : response()->json(['message' => 'Role tidak ditemukan.'], 404);
     }
 
     public function update(Request $request, $id)
@@ -58,10 +65,10 @@ class RoleController extends Controller implements HasMiddleware
         try {
             $updated = $this->roleService->update($id, $request->all());
             return $updated
-                ? response()->json(['message' => 'Role berhasil diperbarui.', 'data' => new RoleResource($updated)])
-                : response()->json(['message' => 'Role tidak ditemukan.'], 404);
+                ? response()->json(['message' => 'Role berhasil diperbarui', 'data' => new RoleResource($updated)])
+                : response()->json(['message' => 'Role tidak ditemukan'], 404);
         } catch (ValidationException $e) {
-            return response()->json(['errors' => $e->errors()], 400);
+            return response()->json(['errors' => $e->errors()], 422);
         }
     }
 
@@ -70,5 +77,12 @@ class RoleController extends Controller implements HasMiddleware
         return $this->roleService->delete($id)
             ? response()->json(['message' => 'Role berhasil dihapus.'])
             : response()->json(['message' => 'Role tidak ditemukan.'], 404);
+    }
+
+    public function restore($id)
+    {
+        return $this->roleService->restore($id)
+            ? response()->json(['message' => 'Role berhasil dipulihkan.'])
+            : response()->json(['message' => 'Role tidak ditemukan atau sudah aktif.'], 404);
     }
 }

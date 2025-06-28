@@ -15,35 +15,55 @@ class RoleService
         $this->roleRepository = $roleRepository;
     }
 
-    public function getAll()
+    public function getAll($withTrashed = false)
     {
-        return $this->roleRepository->getAll();
+        return $withTrashed
+            ? $this->roleRepository->getAllWithTrashed()
+            : $this->roleRepository->getAll();
     }
 
-    public function getById($id)
+    public function getById($id, $withTrashed = false)
     {
-        return $this->roleRepository->findById($id);
+        return $withTrashed
+            ? $this->roleRepository->findByIdWithTrashed($id)
+            : $this->roleRepository->findById($id);
     }
 
     public function create(array $data)
     {
         $validator = Validator::make($data, [
-            'name' => 'required|string|unique:roles,name',
-            'guard_name' => 'web'
+            'name' => 'required|string',
         ]);
 
         if ($validator->fails()) {
             throw new ValidationException($validator);
         }
 
+        // Cek apakah sudah pernah dibuat dan terhapus
+        $trashed = $this->roleRepository->findTrashedByName($data['name']);
+        if ($trashed) {
+            $this->roleRepository->restoreByName($data['name']);
+            $this->roleRepository->update($trashed, [
+                'guard_name' => $data['guard_name'] ?? 'api'
+            ]);
+            return $trashed->fresh();
+        }
+
+        // Cek duplikat aktif
+        $existing = $this->roleRepository->getAll()->where('name', $data['name'])->first();
+        if ($existing) {
+            throw new \Exception('Role dengan nama tersebut sudah ada.');
+        }
+
         return $this->roleRepository->create([
-            'name' => $data['name']
+            'name' => $data['name'],
+            'guard_name' => $data['guard_name'] ?? 'api',
         ]);
     }
 
     public function update($id, array $data)
     {
-        $role = $this->roleRepository->findById($id);
+        $role = $this->roleRepository->findByIdWithTrashed($id);
         if (!$role) return null;
 
         $validator = Validator::make($data, [
@@ -54,15 +74,17 @@ class RoleService
             throw new ValidationException($validator);
         }
 
-        $this->roleRepository->update($role, ['name' => $data['name']]);
-        return $role;
+        return $this->roleRepository->update($role, $data);
     }
 
     public function delete($id)
     {
         $role = $this->roleRepository->findById($id);
-        if (!$role) return false;
+        return $role ? $this->roleRepository->delete($role) : false;
+    }
 
-        return $this->roleRepository->delete($role);
+    public function restore($id)
+    {
+        return $this->roleRepository->restore($id);
     }
 }

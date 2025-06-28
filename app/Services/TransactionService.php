@@ -82,22 +82,6 @@ class TransactionService
     }
     public function updateTransactionByKode($kode, $request)
     {
-        DB::beginTransaction();
-        try {
-            $transaction = $this->transactionRepo->updateTransactionWithDetailsByKode($kode, $request);
-            DB::commit();
-            return [
-                'success' => true,
-                'message' => 'Transaksi berhasil diperbarui!',
-                'data' => $transaction
-            ];
-        } catch (Exception $e) {
-            DB::rollBack();
-            return [
-                'success' => false,
-                'message' => 'Transaksi gagal diperbarui!',
-                'error' => $e->getMessage()
-            ];
-        }
+        return $this->transactionRepo->updateTransactionWithDetailsByKode($kode, $request);
     }
 }

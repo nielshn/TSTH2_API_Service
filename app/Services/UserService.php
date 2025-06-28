@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class UserService
@@ -29,7 +30,6 @@ class UserService
         return $this->userRepository->getOperators();
     }
 
-
     public function getById($id)
     {
         return $this->userRepository->getById($id);
@@ -37,44 +37,64 @@ class UserService
 
     public function create(array $data)
     {
+        // Cek user terhapus dengan nama yang sama
+        $deletedUser = User::onlyTrashed()->where('name', $data['name'])->first();
+
+        if ($deletedUser) {
+            // Restore jika nama sama
+            $deletedUser->restore();
+
+            // Update data yang baru dikirim
+            $deletedUser->update([
+                'password' => Hash::make($data['password']),
+                'email' => $data['email'] ?? $deletedUser->email,
+                'phone_number' => $data['phone_number'] ?? $deletedUser->phone_number,
+            ]);
+
+            $deletedUser->syncRoles($data['roles']);
+            return $deletedUser->fresh();
+        }
+
+        // Validasi input
         $validator = Validator::make($data, [
-            'name' => 'required|string|max:255|unique:users,name',
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('users', 'name')->whereNull('deleted_at'),
+            ],
             'password' => [
                 'required',
                 'string',
-                Password::min(8)
-                    ->mixedCase()
-                    ->letters()
-                    ->numbers()
-                    ->symbols(),
+                Password::min(8)->mixedCase()->letters()->numbers()->symbols(),
                 'confirmed'
             ],
             'roles' => 'required|array',
             'roles.*' => 'string|exists:roles,name',
         ], [
-            'password.required' => 'Password diperlukan.',
-            'password.min' => 'Password harus memiliki minimal 8 karakter.',
+            'name.required' => 'Nama wajib diisi.',
+            'name.unique' => 'Nama sudah digunakan.',
+            'password.required' => 'Password wajib diisi.',
+            'password.min' => 'Password harus minimal 8 karakter.',
             'password.mixedCase' => 'Password harus mengandung huruf besar dan kecil.',
             'password.letters' => 'Password harus mengandung huruf.',
             'password.numbers' => 'Password harus mengandung angka.',
             'password.symbols' => 'Password harus mengandung simbol.',
             'password.confirmed' => 'Konfirmasi password tidak cocok.',
+            'roles.required' => 'Peran wajib diisi.',
+            'roles.*.exists' => 'Peran yang dipilih tidak valid.',
         ]);
 
         if ($validator->fails()) {
             throw new ValidationException($validator);
         }
-        // Hash password
+
         $data['password'] = Hash::make($data['password']);
 
-        // Ambil role pertama dari array dan simpan ke field role_id
         $role = \Spatie\Permission\Models\Role::where('name', $data['roles'][0])->first();
         $data['role_id'] = $role ? $role->id : null;
 
-        // Buat user
         $user = $this->userRepository->create($data);
-
-        // Assign roles ke user
         $user->syncRoles($data['roles']);
 
         return $user;
@@ -98,7 +118,6 @@ class UserService
         }
 
         $this->userRepository->update($user, $data);
-
         return $user->fresh();
     }
 
@@ -125,10 +144,8 @@ class UserService
         }
 
         $this->userRepository->update($user, ['avatar' => null]);
-
         return $user->fresh();
     }
-
 
     public function changePasswordByLoginUser(array $data)
     {
@@ -175,27 +192,53 @@ class UserService
             throw new \Exception('User tidak ditemukan');
         }
 
-        return $this->userRepository->delete($user);
-    }
+        if (auth()->id() == $user->id) {
+            throw new \Exception('Anda tidak dapat menghapus akun Anda sendiri.');
+        }
 
+        return $user->delete(); // Soft delete
+    }
 
     public function updateUserByAdmin($id, array $data)
     {
+        $id = (int) $id;
         $user = $this->userRepository->getById($id);
+
         if (!$user) {
-            throw new \Exception('User tidak ditemukan');
+            throw new \Exception('Pengguna tidak ditemukan.');
+        }
+
+        if (isset($data['roles']) && !is_array($data['roles'])) {
+            $data['roles'] = [$data['roles']];
         }
 
         $validator = Validator::make($data, [
-            'name' => 'required|string|max:255|unique:users,name,' . $id,
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('users', 'name')->ignore($id)->whereNull('deleted_at'),
+            ],
             'password' => [
                 'nullable',
                 'string',
                 Password::min(8)->mixedCase()->letters()->numbers()->symbols(),
-                'confirmed'
+                'confirmed',
             ],
             'roles' => 'required|array',
             'roles.*' => 'string|exists:roles,name',
+        ], [
+            'name.required' => 'Nama wajib diisi.',
+            'name.unique' => 'Nama pengguna sudah terdaftar.',
+            'name.max' => 'Nama maksimal 255 karakter.',
+            'password.min' => 'Password harus minimal 8 karakter.',
+            'password.mixedCase' => 'Password harus mengandung huruf besar dan kecil.',
+            'password.letters' => 'Password harus mengandung huruf.',
+            'password.numbers' => 'Password harus mengandung angka.',
+            'password.symbols' => 'Password harus mengandung simbol.',
+            'password.confirmed' => 'Konfirmasi password tidak cocok.',
+            'roles.required' => 'Peran wajib dipilih.',
+            'roles.*.exists' => 'Peran yang dipilih tidak valid.',
         ]);
 
         if ($validator->fails()) {
@@ -211,6 +254,6 @@ class UserService
         $this->userRepository->update($user, $data);
         $user->syncRoles($data['roles']);
 
-        return $user;
+        return $user->fresh();
     }
 }
